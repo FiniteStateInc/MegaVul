@@ -2,16 +2,6 @@ FROM ubuntu:22.04 AS megavul_base
 
 LABEL authors="MegaVul" description="Out-of-the-box dependency environment for MegaVul" version="1.0"
 
-ENV POETRY_VERSION=2.1.2 \
-    PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=off \
-    PIP_DISABLE_PIP_VERSION_CHECK=on \
-    PIP_DEFAULT_TIMEOUT=100 \
-    POETRY_VIRTUALENVS_CREATE=false \
-    POETRY_NO_INTERACTION=1 \
-    POETRY_CACHE_DIR=/tmp/poetry_cache
-
 # Install dependencies in a single RUN command and clean up apt cache
 RUN apt-get update && apt-get install -y \
     wget \
@@ -27,11 +17,14 @@ RUN apt-get update && apt-get install -y \
     ca-certificates  \
     gnupg  \
     git \
+    python3.11 \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
 # Install poetry
-RUN pip3 install --no-cache-dir poetry==$POETRY_VERSION
+RUN curl -sSL https://install.python-poetry.org | python3.11 -
+ENV PATH="/root/.local/bin:$PATH"
+ENV POETRY_CACHE_DIR=/tmp/poetry_cache
 
 # Install nodejs
 RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
@@ -54,7 +47,8 @@ ENV PATH=/root/.sdkman/candidates/sbt/current/bin:$PATH
 RUN npm -v && java --version && scala --version && github-linguist --version && tree-sitter --version
 
 # Copy project files
-COPY environment.yml pyproject.toml megavul/ /MegaVul/
+COPY environment.yml pyproject.toml /MegaVul/
+COPY megavul/ /MegaVul/megavul/
 
 # Install dependencies with poetry
 RUN echo poetry --version
