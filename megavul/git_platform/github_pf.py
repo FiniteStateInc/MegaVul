@@ -292,6 +292,8 @@ def find_potential_commits_from_github(logger: logging.Logger, url: str, url_lis
 
     if len(commit_urls) == 0:
         logger.info(f'[Github Commit not found]: {url}')
+    else:
+        logger.info(f'[Github Commit found]: {url}')
 
     return commit_urls
 
