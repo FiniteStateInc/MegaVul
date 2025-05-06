@@ -53,7 +53,7 @@ def crawl_nvd(use_cache:bool = True):
         else:
             global_logger.info(f'Try to download the latest NVD database, ignoring the cache')
 
-    # begin download latest CVE entries from NVD databases
+    # Begin downloading the latest CVE entries from NVD databases
     for page in tqdm(range(total_page_cnt),desc='Downloading CVE page from NVD',):
         cache_page_path = cache_page_dir / f'{RESULT_PER_PAGE}_{page}.json'
         if cache_page_path.exists() and use_cache:
@@ -64,14 +64,22 @@ def crawl_nvd(use_cache:bool = True):
         page_url = compose_nvd_page_url(page,RESULT_PER_PAGE)
         data: dict
         cve_entries: list
-        while True:
+
+        retry_counter = 0
+        max_retries = 3
+
+        while retry_counter < max_retries:
             data = safe_read_json_from_network(page_url,15)
             cve_entries = [item['cve'] for item in data['vulnerabilities']]
             expected_entries_len = RESULT_PER_PAGE if (page < total_page_cnt - 1) else  nvd_metadata.totalResults % RESULT_PER_PAGE
             if expected_entries_len != len(cve_entries):
                 global_logger.warning(f'Download data incomplete, expected entries length:{expected_entries_len} but download:{len(cve_entries)}, trying again...')
+                retry_counter += 1
                 continue
             break
+        else:
+            global_logger.error(f'Max retries reached for page {page}. Setting cve_entries to empty list.')
+            cve_entries = []
 
         all_cve_entries.extend(cve_entries)
         save_data_as_json(cve_entries, cache_page_path)

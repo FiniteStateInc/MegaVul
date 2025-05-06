@@ -46,8 +46,10 @@ def add_github_token_and_check():
     for token in GITHUB_TOKENS:
         global_logger.info(f'Adding GitHub token {token}')
         GITHUB_LIST.append(Github(token,
-                                  retry=Retry(total=None, backoff_factor= 0.1,
+                                  retry=Retry(total=5, backoff_factor= 0.1,
                                               status_forcelist=[403],)))  # 403 rate limit exceeded
+
+    global_logger.info("GitHub instance initialized, checking token validity...")
 
     for idx,github in enumerate(GITHUB_LIST):
         try:
