@@ -287,14 +287,24 @@ def find_potential_commits_from_github(logger: logging.Logger, url: str, url_lis
         if repo_name in commit_find_dict:   # find commit URL before, skip find commits from pull or issue
             return []
         pull_id = int(pull_match.group(2))
-        commit_urls.extend(find_github_commits_from_pull(logger, repo_name, pull_id))
+        xs = []
+        try:
+            xs = find_github_commits_from_pull(logger, repo_name, pull_id)
+        except Exception as e:
+            logger.error(f'[Exception] Potential commit from pull({repo_name}/{pull_id}) with unknown exception:{e}')
+        commit_urls.extend(xs)
     # 3. issue
     elif (issue_match := re.match(r'https?://github\.com/([\w-]+/[\w-]+)/issues/([\da-f]+)', url)) is not None:
         repo_name = issue_match.group(1)
         if repo_name in commit_find_dict:
             return []
         issue_id = int(issue_match.group(2))
-        commit_urls.extend(find_github_commits_from_issue(logger, repo_name, issue_id))
+        xs = []
+        try:
+            xs = find_github_commits_from_issue(logger, repo_name, issue_id)
+        except Exception as e:
+            logger.error(f'[Exception] Potential commit from issue({repo_name}/{issue_id}) with unknown exception:{e}')
+        commit_urls.extend(xs)
     else:
         pass
 
