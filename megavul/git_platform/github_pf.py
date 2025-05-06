@@ -217,6 +217,9 @@ def find_github_commits_from_pull(logger: logging.Logger, repo_name: str, pull_i
             return commit_urls
         logger.error(f'[Github Exception] Get pull info({repo_name}/{pull_id}) with unknown GithubException:{e}')
         raise e
+    except requests.exceptions.RequestException as e:
+        logger.error(f'[HTTP Exception] Get pull info({repo_name}/{pull_id}) with unknown requests exception:{e}')
+        raise e
 
 
 def find_github_commits_from_issue(logger: logging.Logger, repo_name: str, issue_id: int) -> list[str]:
@@ -227,8 +230,13 @@ def find_github_commits_from_issue(logger: logging.Logger, repo_name: str, issue
     pull_ids, issue_commit_urls = find_github_pull_and_commit_from_issue(logger, repo_name, issue_id)
     commit_urls.extend(issue_commit_urls)
     for pull_id in pull_ids:
-        commit_urls.extend(find_github_commits_from_pull(logger, repo_name, pull_id))
-
+        try:
+            ns = find_github_commits_from_pull(logger, repo_name, pull_id)
+            if len(ns) != 0:
+                commit_urls.extend(ns)
+        except Exception as e:
+            logger.error(f'[Exception] Get pull issue commits ({repo_name}/{issue_id}) with unknown exception:{e}')
+            continue
     return commit_urls
 
 
