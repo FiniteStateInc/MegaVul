@@ -387,7 +387,6 @@ class GitHubPlatformBase(GitPlatformBase):
                 return RawCommitInfo(
                     repo_full_name, commit_msg, commit_hash, parent_commit_hash,commit_date, file_paths, None, git_url
                 )
-
             except github.UnknownObjectException as e:
                 logger.info(self.fmt_msg(f'{repo_full_name}:{commit_hash} commit not found'))
             except github.GithubException as e:

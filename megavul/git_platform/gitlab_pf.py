@@ -119,7 +119,11 @@ def find_commits_from_pr_in_gitlab(pr_url: str) -> list[str]:
     commit_urls = []
     for item in pr_page.find_all(class_='commit-row-message item-title js-onboarding-commit-item'):
         commit_hash = item['href'].split('commit_id=')[1]
-        commit_urls.append(compose_commit_url(commit_hash))
+        try:
+            commit_url = compose_commit_url(commit_hash)
+            commit_urls.append(commit_url)
+        except Exception:
+            continue
     if len(commit_urls) > GITLAB_COMMIT_THRESHOLD:   # drop big PR
         return []
     return commit_urls
