@@ -43,22 +43,27 @@ GITHUB_LIST = []
 
 def add_github_token_and_check():
     global GITHUB_LIST,GITHUB_TOKENS
+    gh_ns = []
     for token in GITHUB_TOKENS:
         global_logger.info(f'Adding GitHub token {token}')
-        GITHUB_LIST.append(Github(token,
+        gh_ns.append(Github(token,
                                   retry=Retry(total=5, backoff_factor= 0.1,
                                               status_forcelist=[403],)))  # 403 rate limit exceeded
 
     global_logger.info("GitHub instance initialized, checking token validity...")
 
-    for idx,github in enumerate(GITHUB_LIST):
+    for idx,github in enumerate(gh_ns):
         try:
             github.get_repo('JetBrains/kotlin')
         except BadCredentialsException as e:
             global_logger.error(f'{GITHUB_TOKENS[idx]} GitHub Token has expired.')
-            raise e
+            continue
+        except Exception as e:
+            global_logger.error(f'{GITHUB_TOKENS[idx]} GitHub Token failed to initialize.: {e}')
+            continue
+        GITHUB_LIST.append(github)
 
-    global_logger.info(f'Initialize GtiHub instance from {len(GITHUB_TOKENS)} tokens')
+    global_logger.info(f'Initialize {len(GITHUB_LIST)} GtiHub instance from {len(GITHUB_TOKENS)} tokens')
 
 add_github_token_and_check()
 
