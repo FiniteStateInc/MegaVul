@@ -143,7 +143,7 @@ def find_github_pull_and_commit_from_issue(logger: logging.Logger, repo: str, is
 
     query = format_query_find_pull_id_from_issue(repo, issue_number)
     github_token = random_token()
-    retry_cnt = 10
+    retry_cnt = 2
     while retry_cnt > 0:
         retry_cnt -= 1
         try:
