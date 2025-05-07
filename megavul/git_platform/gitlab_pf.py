@@ -83,7 +83,9 @@ class GitLabPlatformBase(GitPlatformBase):
             if check_file_exists_and_not_empty(save_dir / trunc_name):
                 already_download_files.append(f_path)
                 continue
-            while True:
+            retry_counter = 0
+            max_retries = 3
+            while retry_counter < max_retries:
                 try:
                     if repo is None:
                         repo = gl.projects.get(repo_name)
@@ -94,9 +96,12 @@ class GitLabPlatformBase(GitPlatformBase):
                     logger.info(self.fmt_msg(f'{repo_name}:{tree_hash} {f_path} {e.error_message}'))
                 except (urllib3.exceptions.MaxRetryError, requests.exceptions.SSLError,requests.exceptions.ConnectionError) as e:
                     logger.info(self.fmt_msg(f'{repo_name}:{tree_hash} max retries exceeded or SSL error, retry again'))
+                    retry_counter += 1
                     time.sleep(5)
                     continue
                 break
+        else:
+            logger.info(self.fmt_msg(f'{repo_name}:{tree_hash} max retries exceeded, give up'))
 
         return already_download_files
 

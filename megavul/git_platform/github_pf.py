@@ -372,8 +372,10 @@ class GitHubPlatformBase(GitPlatformBase):
         # cache
         # if cache_commit_file_dir(repo_full_name, commit_hash, commit_hash).exists():
         #     return None
+        retry_count = 0
+        max_retries = 2
 
-        while True:
+        while retry_count < max_retries:
             try:
                 repo = random_g().get_repo(repo_full_name)
                 commit = repo.get_commit(commit_hash)
@@ -396,9 +398,13 @@ class GitHubPlatformBase(GitPlatformBase):
                 #     raise e
             except (urllib3.exceptions.ReadTimeoutError,requests.exceptions.RequestException):
                 logger.info(self.fmt_msg(f'{repo_full_name}:{commit_hash} read time out, try again'))
-                time.sleep(60)
+                retry_count += 1
+                time.sleep(30)
                 continue
             break
+        else:
+            logger.info(self.fmt_msg(f'{repo_full_name}:{commit_hash} max retries exceeded, give up'))
+            return None
 
         logger.debug(self.fmt_msg(f'can not download: {url}'))
         return None
