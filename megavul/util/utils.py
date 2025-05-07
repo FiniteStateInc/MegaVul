@@ -136,7 +136,7 @@ def get_final_redirect_url(url: str) -> str:
 
 def __safe_get_request(url: str) -> Optional[requests.Response]:
     res: Optional[requests.Response] = None
-    retry_cnt = 10
+    retry_cnt = 2
     while retry_cnt > 0:
         retry_cnt -= 1
         try:
