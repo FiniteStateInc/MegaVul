@@ -136,11 +136,11 @@ def get_final_redirect_url(url: str) -> str:
 
 def __safe_get_request(url: str) -> Optional[requests.Response]:
     res: Optional[requests.Response] = None
-    retry_cnt = 10
+    retry_cnt = 2
     while retry_cnt > 0:
         retry_cnt -= 1
         try:
-            res = requests.get(url, proxies=proxies,timeout=10)
+            res = requests.get(url, proxies=proxies,timeout=10,redirect=True)
             if res.status_code == 404:
                 break
             if res.status_code != 200:
@@ -253,29 +253,29 @@ def build_tree_sitter_language(language_name : str, debug_mode = False) -> Langu
     tree_sitter_path = StorageLocation.tree_sitter_dir() / tree_sitter_name
     tree_sitter_so = StorageLocation.result_dir() / 'build' / f'build-{tree_sitter_name}.so'
 
-    if not tree_sitter_path.exists() or not (tree_sitter_path / 'grammar.js').exists():
-        raise RuntimeError(f"No tree-sitter source found in {tree_sitter_path}")
-
-    if not tree_sitter_so.exists() or debug_mode:
-        if multiprocessing.current_process().name != "MainProcess":
-            raise RuntimeError(f"tree-sitter only can build in main process")
-        # in debug mode, we build so library every time
-        global_logger.info(f'{tree_sitter_name} are in DEBUG mode, will build so library every time.')
-
-        # step.1 generate tree-sitter
-        subprocess.call(
-            'tree-sitter generate',
-            cwd=tree_sitter_path,
-            env=os.environ.copy(), shell=True
-        )
-
-        # step.2 build so library
-        Language.build_library(
-            str(tree_sitter_so), [str(tree_sitter_path)]
-        )
-
-    if not tree_sitter_so.exists():
-        raise RuntimeError(f"{tree_sitter_name} build so library does not exist!")
+    # if not tree_sitter_path.exists() or not (tree_sitter_path / 'grammar.js').exists():
+    #     raise RuntimeError(f"No tree-sitter source found in {tree_sitter_path}")
+    #
+    # if not tree_sitter_so.exists() or debug_mode:
+    #     if multiprocessing.current_process().name != "MainProcess":
+    #         raise RuntimeError(f"tree-sitter only can build in main process")
+    #     # in debug mode, we build so library every time
+    #     global_logger.info(f'{tree_sitter_name} are in DEBUG mode, will build so library every time.')
+    #
+    #     # step.1 generate tree-sitter
+    #     subprocess.call(
+    #         'tree-sitter generate',
+    #         cwd=tree_sitter_path,
+    #         env=os.environ.copy(), shell=True
+    #     )
+    #
+    #     # step.2 build so library
+    #     Language.build_library(
+    #         str(tree_sitter_so), [str(tree_sitter_path)]
+    #     )
+    #
+    # if not tree_sitter_so.exists():
+    #     raise RuntimeError(f"{tree_sitter_name} build so library does not exist!")
 
     return Language(str(tree_sitter_so), language_name)
 

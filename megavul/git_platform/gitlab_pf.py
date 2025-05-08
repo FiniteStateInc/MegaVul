@@ -39,7 +39,10 @@ class GitLabPlatformBase(GitPlatformBase):
         commit_hash = re_result.group('commit_hash')
         repo_name = f'{owner}/{repo}'
 
-        while True:
+        max_retries = 3
+        retry_counter = 0
+
+        while retry_counter < max_retries:
             try:
                 project: Project = gl.projects.get(repo_name)
                 commit = project.commits.get(commit_hash)
@@ -60,7 +63,11 @@ class GitLabPlatformBase(GitPlatformBase):
                 return None
             except (urllib3.exceptions.MaxRetryError,requests.exceptions.SSLError,urllib3.exceptions.RequestError, requests.exceptions.ConnectionError) as e:
                 logger.info(self.fmt_msg(f'{repo_name}:{commit_hash} {url} max retries exceeded or SSL error, retry again '))
+                retry_counter += 1
                 continue
+        else:
+            logger.info(self.fmt_msg(f'{repo_name}:{commit_hash} {url} max retries exceeded, give up'))
+            return None
 
     def download_commit_with_save_dir(self, logger: logging.Logger, raw_commit_info: RawCommitInfo,
                                       need_download_file_paths: list[str], download_parent_commit: bool,
@@ -76,7 +83,9 @@ class GitLabPlatformBase(GitPlatformBase):
             if check_file_exists_and_not_empty(save_dir / trunc_name):
                 already_download_files.append(f_path)
                 continue
-            while True:
+            retry_counter = 0
+            max_retries = 3
+            while retry_counter < max_retries:
                 try:
                     if repo is None:
                         repo = gl.projects.get(repo_name)
@@ -87,9 +96,12 @@ class GitLabPlatformBase(GitPlatformBase):
                     logger.info(self.fmt_msg(f'{repo_name}:{tree_hash} {f_path} {e.error_message}'))
                 except (urllib3.exceptions.MaxRetryError, requests.exceptions.SSLError,requests.exceptions.ConnectionError) as e:
                     logger.info(self.fmt_msg(f'{repo_name}:{tree_hash} max retries exceeded or SSL error, retry again'))
+                    retry_counter += 1
                     time.sleep(5)
                     continue
                 break
+        else:
+            logger.info(self.fmt_msg(f'{repo_name}:{tree_hash} max retries exceeded, give up'))
 
         return already_download_files
 
@@ -112,7 +124,11 @@ def find_commits_from_pr_in_gitlab(pr_url: str) -> list[str]:
     commit_urls = []
     for item in pr_page.find_all(class_='commit-row-message item-title js-onboarding-commit-item'):
         commit_hash = item['href'].split('commit_id=')[1]
-        commit_urls.append(compose_commit_url(commit_hash))
+        try:
+            commit_url = compose_commit_url(commit_hash)
+            commit_urls.append(commit_url)
+        except Exception:
+            continue
     if len(commit_urls) > GITLAB_COMMIT_THRESHOLD:   # drop big PR
         return []
     return commit_urls
@@ -171,10 +187,13 @@ def find_commits_from_gitlab(url:str) -> list[str]:
         # https://gitlab.com/libtiff/libtiff/merge_requests/33/diffs?commit_id=6da1fb3f64d43be37e640efbec60400d1f1ac39e
         url = url[:url.find('/diffs?commit_id')]
     commits = []
-    if 'issue' in url:
-        commits.extend(find_commits_from_issue_in_gitlab(url))
-    elif 'merge_requests' in url:
-        commits.extend(find_commits_from_pr_in_gitlab(url))
+    try:
+        if 'issue' in url:
+            commits.extend(find_commits_from_issue_in_gitlab(url))
+        elif 'merge_requests' in url:
+            commits.extend(find_commits_from_pr_in_gitlab(url))
+    except Exception as e:
+        pass
     return commits
 
 # test case

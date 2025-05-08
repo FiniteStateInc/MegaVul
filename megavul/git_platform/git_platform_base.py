@@ -29,23 +29,27 @@ class GitPlatformBase(metaclass=ABCMeta):
         ...
 
     def resolve_raw_commit_and_download(self, logger:logging.Logger, raw_commit_info: RawCommitInfo) -> Optional[DownloadedCommitInfo]:
-        a_dl_files = self.download_commit(logger , raw_commit_info, False)
-        b_dl_files = self.download_commit(logger , raw_commit_info, True)
-        # 1. some files are newly added
-        # 2. some files are renamed
-        # we have no way to track these files.
-        if len(set(a_dl_files)) != len(set(b_dl_files)):
-            logger.debug(self.fmt_msg(f"{raw_commit_info.repo_name}:{raw_commit_info.commit_hash}"
-                                      f" from {raw_commit_info.git_url} has different number of files compared to parent commit."
-                                      f" this:{a_dl_files} parent:{b_dl_files}"))
+        try:
+            a_dl_files = self.download_commit(logger , raw_commit_info, False)
+            b_dl_files = self.download_commit(logger , raw_commit_info, True)
+            # 1. some files are newly added
+            # 2. some files are renamed
+            # we have no way to track these files.
+            if len(set(a_dl_files)) != len(set(b_dl_files)):
+                logger.debug(self.fmt_msg(f"{raw_commit_info.repo_name}:{raw_commit_info.commit_hash}"
+                                          f" from {raw_commit_info.git_url} has different number of files compared to parent commit."
+                                          f" this:{a_dl_files} parent:{b_dl_files}"))
 
-        diff_file_paths = list(set(a_dl_files) & set(b_dl_files))
-        if len(diff_file_paths) == 0:
+            diff_file_paths = list(set(a_dl_files) & set(b_dl_files))
+            if len(diff_file_paths) == 0:
+                return None
+            return DownloadedCommitInfo(raw_commit_info.repo_name, raw_commit_info.commit_msg,
+                                        raw_commit_info.commit_hash, raw_commit_info.parent_commit_hash,raw_commit_info.commit_date,
+                                        diff_file_paths, raw_commit_info.git_url
+                                        )
+        except Exception as e:
+            logger.error(self.fmt_msg(f"resolve_raw_commit_and_download error: {e}"))
             return None
-        return DownloadedCommitInfo(raw_commit_info.repo_name, raw_commit_info.commit_msg,
-                                    raw_commit_info.commit_hash, raw_commit_info.parent_commit_hash,raw_commit_info.commit_date,
-                                    diff_file_paths, raw_commit_info.git_url
-                                    )
 
     def download_commit(self, logger: logging.Logger, raw_commit_info: RawCommitInfo, download_parent_commit: bool) -> list[str]:
         save_dir = cache_commit_file_dir(raw_commit_info.repo_name, raw_commit_info.commit_hash,

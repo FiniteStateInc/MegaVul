@@ -43,20 +43,27 @@ GITHUB_LIST = []
 
 def add_github_token_and_check():
     global GITHUB_LIST,GITHUB_TOKENS
+    gh_ns = []
     for token in GITHUB_TOKENS:
         global_logger.info(f'Adding GitHub token {token}')
-        GITHUB_LIST.append(Github(token,
-                                  retry=Retry(total=None, backoff_factor= 0.1,
+        gh_ns.append(Github(token,
+                                  retry=Retry(total=5, backoff_factor= 0.1,
                                               status_forcelist=[403],)))  # 403 rate limit exceeded
 
-    for idx,github in enumerate(GITHUB_LIST):
+    global_logger.info("GitHub instance initialized, checking token validity...")
+
+    for idx,github in enumerate(gh_ns):
         try:
             github.get_repo('JetBrains/kotlin')
         except BadCredentialsException as e:
             global_logger.error(f'{GITHUB_TOKENS[idx]} GitHub Token has expired.')
-            raise e
+            continue
+        except Exception as e:
+            global_logger.error(f'{GITHUB_TOKENS[idx]} GitHub Token failed to initialize.: {e}')
+            continue
+        GITHUB_LIST.append(github)
 
-    global_logger.info(f'Initialize GtiHub instance from {len(GITHUB_TOKENS)} tokens')
+    global_logger.info(f'Initialize {len(GITHUB_LIST)} GtiHub instance from {len(GITHUB_TOKENS)} tokens')
 
 add_github_token_and_check()
 
@@ -136,7 +143,7 @@ def find_github_pull_and_commit_from_issue(logger: logging.Logger, repo: str, is
 
     query = format_query_find_pull_id_from_issue(repo, issue_number)
     github_token = random_token()
-    retry_cnt = 10
+    retry_cnt = 2
     while retry_cnt > 0:
         retry_cnt -= 1
         try:
@@ -215,6 +222,9 @@ def find_github_commits_from_pull(logger: logging.Logger, repo_name: str, pull_i
             return commit_urls
         logger.error(f'[Github Exception] Get pull info({repo_name}/{pull_id}) with unknown GithubException:{e}')
         raise e
+    except requests.exceptions.RequestException as e:
+        logger.error(f'[HTTP Exception] Get pull info({repo_name}/{pull_id}) with unknown requests exception:{e}')
+        raise e
 
 
 def find_github_commits_from_issue(logger: logging.Logger, repo_name: str, issue_id: int) -> list[str]:
@@ -225,8 +235,13 @@ def find_github_commits_from_issue(logger: logging.Logger, repo_name: str, issue
     pull_ids, issue_commit_urls = find_github_pull_and_commit_from_issue(logger, repo_name, issue_id)
     commit_urls.extend(issue_commit_urls)
     for pull_id in pull_ids:
-        commit_urls.extend(find_github_commits_from_pull(logger, repo_name, pull_id))
-
+        try:
+            ns = find_github_commits_from_pull(logger, repo_name, pull_id)
+            if len(ns) != 0:
+                commit_urls.extend(ns)
+        except Exception as e:
+            logger.error(f'[Exception] Get pull issue commits ({repo_name}/{issue_id}) with unknown exception:{e}')
+            continue
     return commit_urls
 
 
@@ -277,19 +292,31 @@ def find_potential_commits_from_github(logger: logging.Logger, url: str, url_lis
         if repo_name in commit_find_dict:   # find commit URL before, skip find commits from pull or issue
             return []
         pull_id = int(pull_match.group(2))
-        commit_urls.extend(find_github_commits_from_pull(logger, repo_name, pull_id))
+        xs = []
+        try:
+            xs = find_github_commits_from_pull(logger, repo_name, pull_id)
+        except Exception as e:
+            logger.error(f'[Exception] Potential commit from pull({repo_name}/{pull_id}) with unknown exception:{e}')
+        commit_urls.extend(xs)
     # 3. issue
     elif (issue_match := re.match(r'https?://github\.com/([\w-]+/[\w-]+)/issues/([\da-f]+)', url)) is not None:
         repo_name = issue_match.group(1)
         if repo_name in commit_find_dict:
             return []
         issue_id = int(issue_match.group(2))
-        commit_urls.extend(find_github_commits_from_issue(logger, repo_name, issue_id))
+        xs = []
+        try:
+            xs = find_github_commits_from_issue(logger, repo_name, issue_id)
+        except Exception as e:
+            logger.error(f'[Exception] Potential commit from issue({repo_name}/{issue_id}) with unknown exception:{e}')
+        commit_urls.extend(xs)
     else:
         pass
 
     if len(commit_urls) == 0:
         logger.info(f'[Github Commit not found]: {url}')
+    else:
+        logger.info(f'[Github Commit found]: {url}')
 
     return commit_urls
 
@@ -350,8 +377,10 @@ class GitHubPlatformBase(GitPlatformBase):
         # cache
         # if cache_commit_file_dir(repo_full_name, commit_hash, commit_hash).exists():
         #     return None
+        retry_count = 0
+        max_retries = 2
 
-        while True:
+        while retry_count < max_retries:
             try:
                 repo = random_g().get_repo(repo_full_name)
                 commit = repo.get_commit(commit_hash)
@@ -365,7 +394,6 @@ class GitHubPlatformBase(GitPlatformBase):
                 return RawCommitInfo(
                     repo_full_name, commit_msg, commit_hash, parent_commit_hash,commit_date, file_paths, None, git_url
                 )
-
             except github.UnknownObjectException as e:
                 logger.info(self.fmt_msg(f'{repo_full_name}:{commit_hash} commit not found'))
             except github.GithubException as e:
@@ -375,9 +403,13 @@ class GitHubPlatformBase(GitPlatformBase):
                 #     raise e
             except (urllib3.exceptions.ReadTimeoutError,requests.exceptions.RequestException):
                 logger.info(self.fmt_msg(f'{repo_full_name}:{commit_hash} read time out, try again'))
-                time.sleep(60)
+                retry_count += 1
+                time.sleep(30)
                 continue
             break
+        else:
+            logger.info(self.fmt_msg(f'{repo_full_name}:{commit_hash} max retries exceeded, give up'))
+            return None
 
         logger.debug(self.fmt_msg(f'can not download: {url}'))
         return None
